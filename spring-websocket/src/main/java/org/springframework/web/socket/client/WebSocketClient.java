@@ -13,31 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.web.socket.client;
 
 import java.net.URI;
 
-import org.springframework.http.HttpHeaders;
+import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
 
 /**
  * Contract for initiating a WebSocket request. As an alternative considering using the
  * declarative style {@link WebSocketConnectionManager} that starts a WebSocket connection
  * to a pre-configured URI when the application starts.
- * 
+ *
  * @author Rossen Stoyanchev
  * @since 4.0
- * 
  * @see WebSocketConnectionManager
  */
 public interface WebSocketClient {
 
+	ListenableFuture<WebSocketSession> doHandshake(WebSocketHandler webSocketHandler,
+			String uriTemplate, Object... uriVariables);
 
-	WebSocketSession doHandshake(WebSocketHandler webSocketHandler,
-			String uriTemplate, Object... uriVariables) throws WebSocketConnectFailureException;
-
-	WebSocketSession doHandshake(WebSocketHandler webSocketHandler, HttpHeaders headers, URI uri)
-			throws WebSocketConnectFailureException;
+	ListenableFuture<WebSocketSession> doHandshake(WebSocketHandler webSocketHandler,
+			WebSocketHttpHeaders headers, URI uri);
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,6 @@
 
 package org.springframework.web.servlet.mvc.method.annotation;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -28,6 +24,7 @@ import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Test;
+
 import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
 import org.springframework.core.MethodParameter;
 import org.springframework.mock.web.test.MockHttpServletRequest;
@@ -39,6 +36,8 @@ import org.springframework.web.bind.annotation.MatrixVariable;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.HandlerMapping;
+
+import static org.junit.Assert.*;
 
 /**
  * Test fixture with {@link MatrixVariableMethodArgumentResolver}.
@@ -75,7 +74,7 @@ public class MatrixVariablesMethodArgumentResolverTests {
 		this.request = new MockHttpServletRequest();
 		this.webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 
-		Map<String, MultiValueMap<String, String>> params = new LinkedHashMap<String, MultiValueMap<String, String>>();
+		Map<String, MultiValueMap<String, String>> params = new LinkedHashMap<>();
 		this.request.setAttribute(HandlerMapping.MATRIX_VARIABLES_ATTRIBUTE, params);
 	}
 
@@ -112,7 +111,7 @@ public class MatrixVariablesMethodArgumentResolverTests {
 		assertEquals("2013", resolver.resolveArgument(this.paramYear, this.mavContainer, this.webRequest, null));
 	}
 
-	@Test(expected=ServletRequestBindingException.class)
+	@Test(expected = ServletRequestBindingException.class)
 	public void resolveArgumentMultipleMatches() throws Exception {
 
 		getMatrixVariables("var1").add("colors", "red");
@@ -121,7 +120,7 @@ public class MatrixVariablesMethodArgumentResolverTests {
 		this.resolver.resolveArgument(this.paramColors, this.mavContainer, this.webRequest, null);
 	}
 
-	@Test(expected=ServletRequestBindingException.class)
+	@Test(expected = ServletRequestBindingException.class)
 	public void resolveArgumentRequired() throws Exception {
 		resolver.resolveArgument(this.paramColors, this.mavContainer, this.webRequest, null);
 	}
@@ -143,7 +142,7 @@ public class MatrixVariablesMethodArgumentResolverTests {
 				(Map<String, MultiValueMap<String, String>>) this.request.getAttribute(
 						HandlerMapping.MATRIX_VARIABLES_ATTRIBUTE);
 
-		MultiValueMap<String, String> params = new LinkedMultiValueMap<String, String>();
+		MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
 		matrixVariables.put(pathVarName, params);
 
 		return params;
@@ -153,7 +152,7 @@ public class MatrixVariablesMethodArgumentResolverTests {
 	public void handle(
 			String stringArg,
 			@MatrixVariable List<String> colors,
-			@MatrixVariable(value="year", pathVar="cars", required=false, defaultValue="2013") int preferredYear) {
+			@MatrixVariable(name = "year", pathVar = "cars", required = false, defaultValue = "2013") int preferredYear) {
 	}
 
 }

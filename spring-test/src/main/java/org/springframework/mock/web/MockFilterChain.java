@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -30,8 +29,6 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 
-import org.springframework.mock.web.MockFilterConfig;
-import org.springframework.mock.web.PassThroughFilterChain;
 import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
 
@@ -123,10 +120,7 @@ public class MockFilterChain implements FilterChain {
 	public void doFilter(ServletRequest request, ServletResponse response) throws IOException, ServletException {
 		Assert.notNull(request, "Request must not be null");
 		Assert.notNull(response, "Response must not be null");
-
-		if (this.request != null) {
-			 throw new IllegalStateException("This FilterChain has already been called!");
-		}
+		Assert.state(this.request == null, "This FilterChain has already been called!");
 
 		if (this.iterator == null) {
 			this.iterator = this.filters.iterator();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import javax.validation.Constraint;
 import javax.validation.ConstraintValidator;
@@ -37,6 +38,10 @@ import javax.validation.constraints.NotNull;
 import org.hibernate.validator.HibernateValidator;
 import org.junit.Test;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.FieldError;
@@ -46,8 +51,9 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 /**
+ * Tests against Hibernate Validator 5.x.
+ *
  * @author Juergen Hoeller
- * @since 3.0
  */
 public class ValidatorFactoryTests {
 
@@ -55,6 +61,7 @@ public class ValidatorFactoryTests {
 	public void testSimpleValidation() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		Set<ConstraintViolation<ValidPerson>> result = validator.validate(person);
 		assertEquals(2, result.size());
@@ -67,6 +74,7 @@ public class ValidatorFactoryTests {
 				fail("Invalid constraint violation with path '" + path + "'");
 			}
 		}
+		validator.destroy();
 	}
 
 	@Test
@@ -74,6 +82,7 @@ public class ValidatorFactoryTests {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.setProviderClass(HibernateValidator.class);
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		Set<ConstraintViolation<ValidPerson>> result = validator.validate(person);
 		assertEquals(2, result.size());
@@ -86,6 +95,7 @@ public class ValidatorFactoryTests {
 				fail("Invalid constraint violation with path '" + path + "'");
 			}
 		}
+		validator.destroy();
 	}
 
 	@Test
@@ -107,6 +117,7 @@ public class ValidatorFactoryTests {
 	public void testSpringValidationFieldType() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		person.setName("Phil");
 		person.getAddress().setStreet("Phil's Street");
@@ -121,6 +132,7 @@ public class ValidatorFactoryTests {
 	public void testSpringValidation() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		BeanPropertyBindingResult result = new BeanPropertyBindingResult(person, "person");
 		validator.validate(person, result);
@@ -133,7 +145,6 @@ public class ValidatorFactoryTests {
 		assertTrue(errorCodes.contains("NotNull.name"));
 		assertTrue(errorCodes.contains("NotNull.java.lang.String"));
 		assertTrue(errorCodes.contains("NotNull"));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
 		errorCodes = Arrays.asList(fieldError.getCodes());
@@ -143,13 +154,13 @@ public class ValidatorFactoryTests {
 		assertTrue(errorCodes.contains("NotNull.street"));
 		assertTrue(errorCodes.contains("NotNull.java.lang.String"));
 		assertTrue(errorCodes.contains("NotNull"));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
 	public void testSpringValidationWithClassLevel() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		person.setName("Juergen");
 		person.getAddress().setStreet("Juergen's Street");
@@ -161,13 +172,34 @@ public class ValidatorFactoryTests {
 		assertEquals(2, errorCodes.size());
 		assertTrue(errorCodes.contains("NameAddressValid.person"));
 		assertTrue(errorCodes.contains("NameAddressValid"));
-		System.out.println(globalError.getDefaultMessage());
+	}
+
+	@Test
+	public void testSpringValidationWithAutowiredValidator() throws Exception {
+		ConfigurableApplicationContext ctx = new AnnotationConfigApplicationContext(
+				LocalValidatorFactoryBean.class);
+		LocalValidatorFactoryBean validator = ctx.getBean(LocalValidatorFactoryBean.class);
+
+		ValidPerson person = new ValidPerson();
+		person.expectsAutowiredValidator = true;
+		person.setName("Juergen");
+		person.getAddress().setStreet("Juergen's Street");
+		BeanPropertyBindingResult result = new BeanPropertyBindingResult(person, "person");
+		validator.validate(person, result);
+		assertEquals(1, result.getErrorCount());
+		ObjectError globalError = result.getGlobalError();
+		List<String> errorCodes = Arrays.asList(globalError.getCodes());
+		assertEquals(2, errorCodes.size());
+		assertTrue(errorCodes.contains("NameAddressValid.person"));
+		assertTrue(errorCodes.contains("NameAddressValid"));
+		ctx.close();
 	}
 
 	@Test
 	public void testSpringValidationWithErrorInListElement() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		person.getAddressList().add(new ValidAddress());
 		BeanPropertyBindingResult result = new BeanPropertyBindingResult(person, "person");
@@ -175,22 +207,17 @@ public class ValidatorFactoryTests {
 		assertEquals(3, result.getErrorCount());
 		FieldError fieldError = result.getFieldError("name");
 		assertEquals("name", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("addressList[0].street");
 		assertEquals("addressList[0].street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
 	public void testSpringValidationWithErrorInSetElement() throws Exception {
 		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
 		validator.afterPropertiesSet();
+
 		ValidPerson person = new ValidPerson();
 		person.getAddressSet().add(new ValidAddress());
 		BeanPropertyBindingResult result = new BeanPropertyBindingResult(person, "person");
@@ -198,16 +225,10 @@ public class ValidatorFactoryTests {
 		assertEquals(3, result.getErrorCount());
 		FieldError fieldError = result.getFieldError("name");
 		assertEquals("name", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("addressSet[].street");
 		assertEquals("addressSet[].street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
@@ -216,6 +237,18 @@ public class ValidatorFactoryTests {
 		validator.afterPropertiesSet();
 
 		MainBean mainBean = new MainBean();
+		Errors errors = new BeanPropertyBindingResult(mainBean, "mainBean");
+		validator.validate(mainBean, errors);
+		Object rejected = errors.getFieldValue("inner.value");
+		assertNull(rejected);
+	}
+
+	@Test
+	public void testValidationWithOptionalField() throws Exception {
+		LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+		validator.afterPropertiesSet();
+
+		MainBeanWithOptional mainBean = new MainBeanWithOptional();
 		Errors errors = new BeanPropertyBindingResult(mainBean, "mainBean");
 		validator.validate(mainBean, errors);
 		Object rejected = errors.getFieldValue("inner.value");
@@ -233,10 +266,12 @@ public class ValidatorFactoryTests {
 		private ValidAddress address = new ValidAddress();
 
 		@Valid
-		private List<ValidAddress> addressList = new LinkedList<ValidAddress>();
+		private List<ValidAddress> addressList = new LinkedList<>();
 
 		@Valid
-		private Set<ValidAddress> addressSet = new LinkedHashSet<ValidAddress>();
+		private Set<ValidAddress> addressSet = new LinkedHashSet<>();
+
+		public boolean expectsAutowiredValidator = false;
 
 		public String getName() {
 			return name;
@@ -271,6 +306,7 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	public static class ValidAddress {
 
 		@NotNull
@@ -285,6 +321,7 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	@Target(ElementType.TYPE)
 	@Retention(RetentionPolicy.RUNTIME)
 	@Constraint(validatedBy = NameAddressValidator.class)
@@ -297,7 +334,11 @@ public class ValidatorFactoryTests {
 		Class<?>[] payload() default {};
 	}
 
+
 	public static class NameAddressValidator implements ConstraintValidator<NameAddressValid, ValidPerson> {
+
+		@Autowired
+		private Environment environment;
 
 		@Override
 		public void initialize(NameAddressValid constraintAnnotation) {
@@ -305,10 +346,13 @@ public class ValidatorFactoryTests {
 
 		@Override
 		public boolean isValid(ValidPerson value, ConstraintValidatorContext context) {
+			if (value.expectsAutowiredValidator) {
+				assertNotNull(this.environment);
+			}
 			boolean valid = (value.name == null || !value.address.street.contains(value.name));
 			if (!valid && "Phil".equals(value.name)) {
 				context.buildConstraintViolationWithTemplate(
-						context.getDefaultConstraintMessageTemplate()).addNode("address").addConstraintViolation().disableDefaultConstraintViolation();
+						context.getDefaultConstraintMessageTemplate()).addPropertyNode("address").addConstraintViolation().disableDefaultConstraintViolation();
 			}
 			return valid;
 		}
@@ -325,6 +369,18 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
+	public static class MainBeanWithOptional {
+
+		@InnerValid
+		private InnerBean inner = new InnerBean();
+
+		public Optional<InnerBean> getInner() {
+			return Optional.ofNullable(inner);
+		}
+	}
+
+
 	public static class InnerBean {
 
 		private String value;
@@ -337,14 +393,19 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
 	@Constraint(validatedBy=InnerValidator.class)
 	public static @interface InnerValid {
+
 		String message() default "NOT VALID";
+
 		Class<?>[] groups() default { };
+
 		Class<? extends Payload>[] payload() default {};
 	}
+
 
 	public static class InnerValidator implements ConstraintValidator<InnerValid, InnerBean> {
 
@@ -356,7 +417,7 @@ public class ValidatorFactoryTests {
 		public boolean isValid(InnerBean bean, ConstraintValidatorContext context) {
 			context.disableDefaultConstraintViolation();
 			if (bean.getValue() == null) {
-				context.buildConstraintViolationWithTemplate("NULL"). addNode("value").addConstraintViolation();
+				context.buildConstraintViolationWithTemplate("NULL").addPropertyNode("value").addConstraintViolation();
 				return false;
 			}
 			return true;

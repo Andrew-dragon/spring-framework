@@ -92,7 +92,6 @@ public class DefaultDocumentLoader implements DocumentLoader {
 
 		if (validationMode != XmlValidationModeDetector.VALIDATION_NONE) {
 			factory.setValidating(true);
-
 			if (validationMode == XmlValidationModeDetector.VALIDATION_XSD) {
 				// Enforce namespace aware for XSD...
 				factory.setNamespaceAware(true);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,15 +28,15 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.ResourceTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
 /**
  * {@link org.springframework.transaction.PlatformTransactionManager}
  * implementation for a single JDBC {@link javax.sql.DataSource}. This class is
  * capable of working in any environment with any JDBC driver, as long as the setup
- * uses a JDBC 2.0 Standard Extensions / JDBC 3.0 {@code javax.sql.DataSource}
- * as its Connection factory mechanism. Binds a JDBC Connection from the specified
- * DataSource to the current thread, potentially allowing for one thread-bound
- * Connection per DataSource.
+ * uses a {@code javax.sql.DataSource} as its {@code Connection} factory mechanism.
+ * Binds a JDBC Connection from the specified DataSource to the current thread,
+ * potentially allowing for one thread-bound Connection per DataSource.
  *
  * <p><b>Note: The DataSource that this transaction manager operates on needs
  * to return independent Connections.</b> The Connections may come from a pool
@@ -48,14 +48,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p>Application code is required to retrieve the JDBC Connection via
  * {@link DataSourceUtils#getConnection(DataSource)} instead of a standard
- * J2EE-style {@link DataSource#getConnection()} call. Spring classes such as
+ * Java EE-style {@link DataSource#getConnection()} call. Spring classes such as
  * {@link org.springframework.jdbc.core.JdbcTemplate} use this strategy implicitly.
  * If not used in combination with this transaction manager, the
  * {@link DataSourceUtils} lookup strategy behaves exactly like the native
  * DataSource lookup; it can thus be used in a portable fashion.
  *
  * <p>Alternatively, you can allow application code to work with the standard
- * J2EE-style lookup pattern {@link DataSource#getConnection()}, for example for
+ * Java EE-style lookup pattern {@link DataSource#getConnection()}, for example for
  * legacy code that is not aware of Spring at all. In that case, define a
  * {@link TransactionAwareDataSourceProxy} for your target DataSource, and pass
  * that proxy DataSource to your DAOs, which will automatically participate in
@@ -75,8 +75,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * an actual JDBC Connection from the target DataSource until a Statement gets executed,
  * lazily applying the specified transaction settings to the target Connection.
  *
- * <p>On JDBC 3.0, this transaction manager supports nested transactions via the
- * JDBC 3.0 {@link java.sql.Savepoint} mechanism. The
+ * <p>This transaction manager supports nested transactions via the JDBC 3.0
+ * {@link java.sql.Savepoint} mechanism. The
  * {@link #setNestedTransactionAllowed "nestedTransactionAllowed"} flag defaults
  * to "true", since nested transactions will work without restrictions on JDBC
  * drivers that support savepoints (such as the Oracle JDBC driver).
@@ -84,9 +84,15 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>This transaction manager can be used as a replacement for the
  * {@link org.springframework.transaction.jta.JtaTransactionManager} in the single
  * resource case, as it does not require a container that supports JTA, typically
- * in combination with a locally defined JDBC DataSource (e.g. a Jakarta Commons
+ * in combination with a locally defined JDBC DataSource (e.g. an Apache Commons
  * DBCP connection pool). Switching between this local strategy and a JTA
  * environment is just a matter of configuration!
+ *
+ * <p>As of 4.3.4, this transaction manager triggers flush callbacks on registered
+ * transaction synchronizations (if synchronization is generally active), assuming
+ * resources operating on the underlying JDBC {@code Connection}. This allows for
+ * setup analogous to {@code JtaTransactionManager}, in particular with respect to
+ * lazily registered ORM resources (e.g. a Hibernate {@code Session}).
  *
  * @author Juergen Hoeller
  * @since 02.05.2003
@@ -127,8 +133,8 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 
 	/**
 	 * Set the JDBC DataSource that this instance should manage transactions for.
-	 * <p>This will typically be a locally defined DataSource, for example a
-	 * Jakarta Commons DBCP connection pool. Alternatively, you can also drive
+	 * <p>This will typically be a locally defined DataSource, for example an
+	 * Apache Commons DBCP connection pool. Alternatively, you can also drive
 	 * transactions for a non-XA J2EE DataSource fetched from JNDI. For an XA
 	 * DataSource, use JtaTransactionManager.
 	 * <p>The DataSource specified here should be the target DataSource to manage
@@ -180,7 +186,7 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 		DataSourceTransactionObject txObject = new DataSourceTransactionObject();
 		txObject.setSavepointAllowed(isNestedTransactionAllowed());
 		ConnectionHolder conHolder =
-			(ConnectionHolder) TransactionSynchronizationManager.getResource(this.dataSource);
+				(ConnectionHolder) TransactionSynchronizationManager.getResource(this.dataSource);
 		txObject.setConnectionHolder(conHolder, false);
 		return txObject;
 	}
@@ -238,8 +244,11 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 			}
 		}
 
-		catch (Exception ex) {
-			DataSourceUtils.releaseConnection(con, this.dataSource);
+		catch (Throwable ex) {
+			if (txObject.isNewConnectionHolder()) {
+				DataSourceUtils.releaseConnection(con, this.dataSource);
+				txObject.setConnectionHolder(null, false);
+			}
 			throw new CannotCreateTransactionException("Could not open JDBC Connection for transaction", ex);
 		}
 	}
@@ -365,6 +374,13 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 		@Override
 		public boolean isRollbackOnly() {
 			return getConnectionHolder().isRollbackOnly();
+		}
+
+		@Override
+		public void flush() {
+			if (TransactionSynchronizationManager.isSynchronizationActive()) {
+				TransactionSynchronizationUtils.triggerFlush();
+			}
 		}
 	}
 

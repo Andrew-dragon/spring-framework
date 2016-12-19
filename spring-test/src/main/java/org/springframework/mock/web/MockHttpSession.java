@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,14 +28,13 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpSessionBindingEvent;
 import javax.servlet.http.HttpSessionBindingListener;
-import javax.servlet.http.HttpSessionContext;
 
 import org.springframework.util.Assert;
 
 /**
  * Mock implementation of the {@link javax.servlet.http.HttpSession} interface.
  *
- * <p>Compatible with Servlet 2.5 as well as Servlet 3.0.
+ * <p>As of Spring 4.0, this set of mocks is designed on a Servlet 3.0 baseline.
  *
  * <p>Used for testing the web framework; also useful for testing application
  * controllers.
@@ -54,7 +53,7 @@ public class MockHttpSession implements HttpSession {
 
 	private static int nextId = 1;
 
-	private final String id;
+	private String id;
 
 	private final long creationTime = System.currentTimeMillis();
 
@@ -64,7 +63,7 @@ public class MockHttpSession implements HttpSession {
 
 	private final ServletContext servletContext;
 
-	private final Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+	private final Map<String, Object> attributes = new LinkedHashMap<>();
 
 	private boolean invalid = false;
 
@@ -111,6 +110,16 @@ public class MockHttpSession implements HttpSession {
 		return this.id;
 	}
 
+	/**
+	 * As of Servlet 3.1 the id of a session can be changed.
+	 * @return the new session id.
+	 * @since 4.0.3
+	 */
+	public String changeSessionId() {
+		this.id = Integer.toString(nextId++);
+		return this.id;
+	}
+
 	public void access() {
 		this.lastAccessedTime = System.currentTimeMillis();
 		this.isNew = false;
@@ -138,7 +147,7 @@ public class MockHttpSession implements HttpSession {
 	}
 
 	@Override
-	public HttpSessionContext getSessionContext() {
+	public javax.servlet.http.HttpSessionContext getSessionContext() {
 		throw new UnsupportedOperationException("getSessionContext");
 	}
 
@@ -157,7 +166,7 @@ public class MockHttpSession implements HttpSession {
 	@Override
 	public Enumeration<String> getAttributeNames() {
 		assertIsValid();
-		return Collections.enumeration(new LinkedHashSet<String>(this.attributes.keySet()));
+		return Collections.enumeration(new LinkedHashSet<>(this.attributes.keySet()));
 	}
 
 	@Override
@@ -235,13 +244,11 @@ public class MockHttpSession implements HttpSession {
 	/**
 	 * Convenience method for asserting that this session has not been
 	 * {@linkplain #invalidate() invalidated}.
-	 * 
+	 *
 	 * @throws IllegalStateException if this session has been invalidated
 	 */
 	private void assertIsValid() {
-		if (isInvalid()) {
-			throw new IllegalStateException("The session has already been invalidated");
-		}
+		Assert.state(!isInvalid(), "The session has already been invalidated");
 	}
 
 	public void setNew(boolean value) {
@@ -261,7 +268,7 @@ public class MockHttpSession implements HttpSession {
 	 * @return a representation of this session's serialized state
 	 */
 	public Serializable serializeState() {
-		HashMap<String, Serializable> state = new HashMap<String, Serializable>();
+		HashMap<String, Serializable> state = new HashMap<>();
 		for (Iterator<Map.Entry<String, Object>> it = this.attributes.entrySet().iterator(); it.hasNext();) {
 			Map.Entry<String, Object> entry = it.next();
 			String name = entry.getKey();

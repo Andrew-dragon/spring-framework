@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 
 package org.springframework.aop.aspectj;
 
+import java.lang.reflect.InvocationTargetException;
+
 import org.springframework.aop.framework.AopConfigException;
 import org.springframework.core.Ordered;
 import org.springframework.util.Assert;
+import org.springframework.util.ReflectionUtils;
 
 /**
  * Implementation of {@link AspectInstanceFactory} that creates a new instance
@@ -29,14 +32,14 @@ import org.springframework.util.Assert;
  */
 public class SimpleAspectInstanceFactory implements AspectInstanceFactory {
 
-	private final Class aspectClass;
+	private final Class<?> aspectClass;
 
 
 	/**
 	 * Create a new SimpleAspectInstanceFactory for the given aspect class.
 	 * @param aspectClass the aspect class
 	 */
-	public SimpleAspectInstanceFactory(Class aspectClass) {
+	public SimpleAspectInstanceFactory(Class<?> aspectClass) {
 		Assert.notNull(aspectClass, "Aspect class must not be null");
 		this.aspectClass = aspectClass;
 	}
@@ -44,7 +47,7 @@ public class SimpleAspectInstanceFactory implements AspectInstanceFactory {
 	/**
 	 * Return the specified aspect class (never {@code null}).
 	 */
-	public final Class getAspectClass() {
+	public final Class<?> getAspectClass() {
 		return this.aspectClass;
 	}
 
@@ -52,13 +55,23 @@ public class SimpleAspectInstanceFactory implements AspectInstanceFactory {
 	@Override
 	public final Object getAspectInstance() {
 		try {
-			return this.aspectClass.newInstance();
+			return ReflectionUtils.accessibleConstructor(this.aspectClass).newInstance();
+		}
+		catch (NoSuchMethodException ex) {
+			throw new AopConfigException(
+					"No default constructor on aspect class: " + this.aspectClass.getName(), ex);
 		}
 		catch (InstantiationException ex) {
-			throw new AopConfigException("Unable to instantiate aspect class [" + this.aspectClass.getName() + "]", ex);
+			throw new AopConfigException(
+					"Unable to instantiate aspect class: " + this.aspectClass.getName(), ex);
 		}
 		catch (IllegalAccessException ex) {
-			throw new AopConfigException("Cannot access element class [" + this.aspectClass.getName() + "]", ex);
+			throw new AopConfigException(
+					"Could not access aspect constructor: " + this.aspectClass.getName(), ex);
+		}
+		catch (InvocationTargetException ex) {
+			throw new AopConfigException(
+					"Failed to invoke aspect constructor: " + this.aspectClass.getName(), ex.getTargetException());
 		}
 	}
 

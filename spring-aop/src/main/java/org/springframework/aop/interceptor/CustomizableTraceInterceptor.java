@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ public class CustomizableTraceInterceptor extends AbstractTraceInterceptor {
 	/**
 	 * The {@code Set} of allowed placeholders.
 	 */
-	private static final Set ALLOWED_PLACEHOLDERS =
+	private static final Set<Object> ALLOWED_PLACEHOLDERS =
 			new Constants(CustomizableTraceInterceptor.class).getValues("PLACEHOLDER_");
 
 
@@ -246,7 +246,7 @@ public class CustomizableTraceInterceptor extends AbstractTraceInterceptor {
 	 */
 	@Override
 	protected Object invokeUnderTrace(MethodInvocation invocation, Log logger) throws Throwable {
-		String name = invocation.getMethod().getDeclaringClass().getName() + "." + invocation.getMethod().getName();
+		String name = ClassUtils.getQualifiedMethodName(invocation.getMethod());
 		StopWatch stopWatch = new StopWatch(name);
 		Object returnValue = null;
 		boolean exitThroughException = false;
@@ -258,7 +258,7 @@ public class CustomizableTraceInterceptor extends AbstractTraceInterceptor {
 			return returnValue;
 		}
 		catch (Throwable ex) {
-			if(stopWatch.isRunning()) {
+			if (stopWatch.isRunning()) {
 				stopWatch.stop();
 			}
 			exitThroughException = true;
@@ -268,7 +268,7 @@ public class CustomizableTraceInterceptor extends AbstractTraceInterceptor {
 		}
 		finally {
 			if (!exitThroughException) {
-				if(stopWatch.isRunning()) {
+				if (stopWatch.isRunning()) {
 					stopWatch.stop();
 				}
 				writeToLog(logger,
@@ -395,7 +395,7 @@ public class CustomizableTraceInterceptor extends AbstractTraceInterceptor {
 	 * @param output the {@code StringBuffer} containing the output
 	 */
 	private void appendArgumentTypes(MethodInvocation methodInvocation, Matcher matcher, StringBuffer output) {
-		Class[] argumentTypes = methodInvocation.getMethod().getParameterTypes();
+		Class<?>[] argumentTypes = methodInvocation.getMethod().getParameterTypes();
 		String[] argumentTypeShortNames = new String[argumentTypes.length];
 		for (int i = 0; i < argumentTypeShortNames.length; i++) {
 			argumentTypeShortNames[i] = ClassUtils.getShortName(argumentTypes[i]);

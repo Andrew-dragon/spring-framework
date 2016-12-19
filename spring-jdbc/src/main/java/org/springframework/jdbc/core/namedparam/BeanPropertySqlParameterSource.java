@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public class BeanPropertySqlParameterSource extends AbstractSqlParameterSource {
 	 */
 	public String[] getReadablePropertyNames() {
 		if (this.propertyNames == null) {
-			List<String> names = new ArrayList<String>();
+			List<String> names = new ArrayList<>();
 			PropertyDescriptor[] props = this.beanWrapper.getPropertyDescriptors();
 			for (PropertyDescriptor pd : props) {
 				if (this.beanWrapper.isReadableProperty(pd.getName())) {
@@ -99,7 +99,7 @@ public class BeanPropertySqlParameterSource extends AbstractSqlParameterSource {
 		if (sqlType != TYPE_UNKNOWN) {
 			return sqlType;
 		}
-		Class propType = this.beanWrapper.getPropertyType(paramName);
+		Class<?> propType = this.beanWrapper.getPropertyType(paramName);
 		return StatementCreatorUtils.javaTypeToSqlParameterType(propType);
 	}
 

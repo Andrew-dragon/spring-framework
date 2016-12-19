@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import org.springframework.util.StringUtils;
  * of {@link ObjectError ObjectErrors} and {@link FieldError FieldErrors}.
  *
  * @author Juergen Hoeller
+ * @author Rossen Stoyanchev
  * @since 2.5.3
  */
 @SuppressWarnings("serial")
@@ -38,7 +39,7 @@ public abstract class AbstractErrors implements Errors, Serializable {
 
 	private String nestedPath = "";
 
-	private final Stack<String> nestedPathStack = new Stack<String>();
+	private final Stack<String> nestedPathStack = new Stack<>();
 
 
 	@Override
@@ -143,7 +144,7 @@ public abstract class AbstractErrors implements Errors, Serializable {
 
 	@Override
 	public List<ObjectError> getAllErrors() {
-		List<ObjectError> result = new LinkedList<ObjectError>();
+		List<ObjectError> result = new LinkedList<>();
 		result.addAll(getGlobalErrors());
 		result.addAll(getFieldErrors());
 		return Collections.unmodifiableList(result);
@@ -194,7 +195,7 @@ public abstract class AbstractErrors implements Errors, Serializable {
 	@Override
 	public List<FieldError> getFieldErrors(String field) {
 		List<FieldError> fieldErrors = getFieldErrors();
-		List<FieldError> result = new LinkedList<FieldError>();
+		List<FieldError> result = new LinkedList<>();
 		String fixedField = fixedField(field);
 		for (FieldError error : fieldErrors) {
 			if (isMatchingFieldError(fixedField, error)) {
@@ -214,10 +215,7 @@ public abstract class AbstractErrors implements Errors, Serializable {
 	@Override
 	public Class<?> getFieldType(String field) {
 		Object value = getFieldValue(field);
-		if (value != null) {
-			return value.getClass();
-		}
-		return null;
+		return (value != null ? value.getClass() : null);
 	}
 
 	/**
@@ -227,8 +225,13 @@ public abstract class AbstractErrors implements Errors, Serializable {
 	 * @return whether the FieldError matches the given field
 	 */
 	protected boolean isMatchingFieldError(String field, FieldError fieldError) {
-		return (field.equals(fieldError.getField()) ||
-				(field.endsWith("*") && fieldError.getField().startsWith(field.substring(0, field.length() - 1))));
+		if (field.equals(fieldError.getField())) {
+			return true;
+		}
+		// Optimization: use charAt and regionMatches instead of endsWith and startsWith (SPR-11304)
+		int endIndex = field.length() - 1;
+		return (endIndex >= 0 && field.charAt(endIndex) == '*' &&
+				(endIndex == 0 || field.regionMatches(0, fieldError.getField(), 0, endIndex)));
 	}
 
 

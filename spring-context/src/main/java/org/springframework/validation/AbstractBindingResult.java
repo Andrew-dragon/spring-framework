@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,9 +48,9 @@ public abstract class AbstractBindingResult extends AbstractErrors implements Bi
 
 	private MessageCodesResolver messageCodesResolver = new DefaultMessageCodesResolver();
 
-	private final List<ObjectError> errors = new LinkedList<ObjectError>();
+	private final List<ObjectError> errors = new LinkedList<>();
 
-	private final Set<String> suppressedFields = new HashSet<String>();
+	private final Set<String> suppressedFields = new HashSet<>();
 
 
 	/**
@@ -155,7 +155,7 @@ public abstract class AbstractBindingResult extends AbstractErrors implements Bi
 
 	@Override
 	public List<ObjectError> getGlobalErrors() {
-		List<ObjectError> result = new LinkedList<ObjectError>();
+		List<ObjectError> result = new LinkedList<>();
 		for (ObjectError objectError : this.errors) {
 			if (!(objectError instanceof FieldError)) {
 				result.add(objectError);
@@ -176,7 +176,7 @@ public abstract class AbstractBindingResult extends AbstractErrors implements Bi
 
 	@Override
 	public List<FieldError> getFieldErrors() {
-		List<FieldError> result = new LinkedList<FieldError>();
+		List<FieldError> result = new LinkedList<>();
 		for (ObjectError objectError : this.errors) {
 			if (objectError instanceof FieldError) {
 				result.add((FieldError) objectError);
@@ -197,7 +197,7 @@ public abstract class AbstractBindingResult extends AbstractErrors implements Bi
 
 	@Override
 	public List<FieldError> getFieldErrors(String field) {
-		List<FieldError> result = new LinkedList<FieldError>();
+		List<FieldError> result = new LinkedList<>();
 		String fixedField = fixedField(field);
 		for (ObjectError objectError : this.errors) {
 			if (objectError instanceof FieldError && isMatchingFieldError(fixedField, (FieldError) objectError)) {
@@ -262,19 +262,15 @@ public abstract class AbstractBindingResult extends AbstractErrors implements Bi
 	 * Adding things to the map and then re-calling this method will not work.
 	 * <p>The attributes in the model Map returned by this method are usually
 	 * included in the ModelAndView for a form view that uses Spring's bind tag,
-	 * which needs access to the Errors instance. Spring's SimpleFormController
-	 * will do this for you when rendering its form or success view. When
-	 * building the ModelAndView yourself, you need to include the attributes
-	 * from the model Map returned by this method yourself.
+	 * which needs access to the Errors instance.
 	 * @see #getObjectName
 	 * @see #MODEL_KEY_PREFIX
 	 * @see org.springframework.web.servlet.ModelAndView
 	 * @see org.springframework.web.servlet.tags.BindTag
-	 * @see org.springframework.web.servlet.mvc.SimpleFormController
 	 */
 	@Override
 	public Map<String, Object> getModel() {
-		Map<String, Object> model = new LinkedHashMap<String, Object>(2);
+		Map<String, Object> model = new LinkedHashMap<>(2);
 		// Mapping from name to target object.
 		model.put(getObjectName(), getTarget());
 		// Errors instance, even if no errors.

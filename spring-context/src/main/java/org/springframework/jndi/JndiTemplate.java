@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,10 +127,10 @@ public class JndiTemplate {
 	 * @throws NamingException in case of initialization errors
 	 */
 	protected Context createInitialContext() throws NamingException {
-		Hashtable icEnv = null;
+		Hashtable<?, ?> icEnv = null;
 		Properties env = getEnvironment();
 		if (env != null) {
-			icEnv = new Hashtable(env.size());
+			icEnv = new Hashtable<>(env.size());
 			CollectionUtils.mergePropertiesIntoMap(env, icEnv);
 		}
 		return new InitialContext(icEnv);

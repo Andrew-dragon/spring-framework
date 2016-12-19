@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,19 @@
 
 package org.springframework.beans.factory.support;
 
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
 import org.springframework.beans.factory.config.ConstructorArgumentValues;
+import org.springframework.core.ResolvableType;
 import org.springframework.util.Assert;
 
 /**
@@ -49,27 +52,27 @@ import org.springframework.util.Assert;
 @SuppressWarnings("serial")
 public class RootBeanDefinition extends AbstractBeanDefinition {
 
-	private final Set<Member> externallyManagedConfigMembers =
-			Collections.newSetFromMap(new ConcurrentHashMap<Member, Boolean>(0));
-
-	private final Set<String> externallyManagedInitMethods =
-			Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>(0));
-
-	private final Set<String> externallyManagedDestroyMethods =
-			Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>(0));
-
 	private BeanDefinitionHolder decoratedDefinition;
+
+	private AnnotatedElement qualifiedElement;
 
 	boolean allowCaching = true;
 
-	private volatile Class<?> targetType;
-
 	boolean isFactoryMethodUnique = false;
 
+	volatile ResolvableType targetType;
+
+	/** Package-visible field for caching the determined Class of a given bean definition */
+	volatile Class<?> resolvedTargetType;
+
+	/** Package-visible field for caching the return type of a generically typed factory method */
+	volatile ResolvableType factoryMethodReturnType;
+
+	/** Common lock for the four constructor fields below */
 	final Object constructorArgumentLock = new Object();
 
 	/** Package-visible field for caching the resolved constructor or factory method */
-	Object resolvedConstructorOrFactoryMethod;
+	Executable resolvedConstructorOrFactoryMethod;
 
 	/** Package-visible field that marks the constructor arguments as resolved */
 	boolean constructorArgumentsResolved = false;
@@ -80,6 +83,7 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 	/** Package-visible field for caching partly prepared constructor arguments */
 	Object[] preparedConstructorArguments;
 
+	/** Common lock for the two post-processing fields below */
 	final Object postProcessingLock = new Object();
 
 	/** Package-visible field that indicates MergedBeanDefinitionPostProcessor having been applied */
@@ -87,6 +91,12 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 
 	/** Package-visible field that indicates a before-instantiation post-processor having kicked in */
 	volatile Boolean beforeInstantiationResolved;
+
+	private Set<Member> externallyManagedConfigMembers;
+
+	private Set<String> externallyManagedInitMethods;
+
+	private Set<String> externallyManagedDestroyMethods;
 
 
 	/**
@@ -107,10 +117,43 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 	/**
 	 * Create a new RootBeanDefinition for a singleton.
 	 * @param beanClass the class of the bean to instantiate
+	 * @see #setBeanClass
 	 */
 	public RootBeanDefinition(Class<?> beanClass) {
 		super();
 		setBeanClass(beanClass);
+	}
+
+	/**
+	 * Create a new RootBeanDefinition for a singleton bean, constructing each instance
+	 * through calling the given supplier (possibly a lambda or method reference).
+	 * @param beanClass the class of the bean to instantiate
+	 * @param instanceSupplier the supplier to construct a bean instance,
+	 * as an alternative to a declaratively specified factory method
+	 * @since 5.0
+	 * @see #setInstanceSupplier(Supplier)
+	 */
+	public <T> RootBeanDefinition(Class<T> beanClass, Supplier<T> instanceSupplier) {
+		super();
+		setBeanClass(beanClass);
+		setInstanceSupplier(instanceSupplier);
+	}
+
+	/**
+	 * Create a new RootBeanDefinition for a scoped bean, constructing each instance
+	 * through calling the given supplier (possibly a lambda or method reference).
+	 * @param beanClass the class of the bean to instantiate
+	 * @param scope the name of the corresponding scope
+	 * @param instanceSupplier the supplier to construct a bean instance,
+	 * as an alternative to a declaratively specified factory method
+	 * @since 5.0
+	 * @see #setInstanceSupplier(Supplier)
+	 */
+	public <T> RootBeanDefinition(Class<T> beanClass, String scope, Supplier<T> instanceSupplier) {
+		super();
+		setBeanClass(beanClass);
+		setScope(scope);
+		setInstanceSupplier(instanceSupplier);
 	}
 
 	/**
@@ -126,7 +169,7 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 		setBeanClass(beanClass);
 		setAutowireMode(autowireMode);
 		if (dependencyCheck && getResolvedAutowireMode() != AUTOWIRE_CONSTRUCTOR) {
-			setDependencyCheck(RootBeanDefinition.DEPENDENCY_CHECK_OBJECTS);
+			setDependencyCheck(DEPENDENCY_CHECK_OBJECTS);
 		}
 	}
 
@@ -173,9 +216,10 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 	public RootBeanDefinition(RootBeanDefinition original) {
 		super(original);
 		this.decoratedDefinition = original.decoratedDefinition;
+		this.qualifiedElement = original.qualifiedElement;
 		this.allowCaching = original.allowCaching;
-		this.targetType = original.targetType;
 		this.isFactoryMethodUnique = original.isFactoryMethodUnique;
+		this.targetType = original.targetType;
 	}
 
 	/**
@@ -201,18 +245,65 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 	}
 
 	/**
+	 * Register a target definition that is being decorated by this bean definition.
+	 */
+	public void setDecoratedDefinition(BeanDefinitionHolder decoratedDefinition) {
+		this.decoratedDefinition = decoratedDefinition;
+	}
+
+	/**
+	 * Return the target definition that is being decorated by this bean definition, if any.
+	 */
+	public BeanDefinitionHolder getDecoratedDefinition() {
+		return this.decoratedDefinition;
+	}
+
+	/**
+	 * Specify the {@link AnnotatedElement} defining qualifiers,
+	 * to be used instead of the target class or factory method.
+	 * @since 4.3.3
+	 * @see #setTargetType(ResolvableType)
+	 * @see #getResolvedFactoryMethod()
+	 */
+	public void setQualifiedElement(AnnotatedElement qualifiedElement) {
+		this.qualifiedElement = qualifiedElement;
+	}
+
+	/**
+	 * Return the {@link AnnotatedElement} defining qualifiers, if any.
+	 * Otherwise, the factory method and target class will be checked.
+	 * @since 4.3.3
+	 */
+	public AnnotatedElement getQualifiedElement() {
+		return this.qualifiedElement;
+	}
+
+	/**
+	 * Specify a generics-containing target type of this bean definition, if known in advance.
+	 * @since 4.3.3
+	 */
+	public void setTargetType(ResolvableType targetType) {
+		this.targetType = targetType;
+	}
+
+	/**
 	 * Specify the target type of this bean definition, if known in advance.
+	 * @since 3.2.2
 	 */
 	public void setTargetType(Class<?> targetType) {
-		this.targetType = targetType;
+		this.targetType = (targetType != null ? ResolvableType.forClass(targetType) : null);
 	}
 
 	/**
 	 * Return the target type of this bean definition, if known
 	 * (either specified in advance or resolved on first instantiation).
+	 * @since 3.2.2
 	 */
 	public Class<?> getTargetType() {
-		return this.targetType;
+		if (this.resolvedTargetType != null) {
+			return this.resolvedTargetType;
+		}
+		return (this.targetType != null ? this.targetType.resolve() : null);
 	}
 
 	/**
@@ -237,42 +328,57 @@ public class RootBeanDefinition extends AbstractBeanDefinition {
 	 */
 	public Method getResolvedFactoryMethod() {
 		synchronized (this.constructorArgumentLock) {
-			Object candidate = this.resolvedConstructorOrFactoryMethod;
+			Executable candidate = this.resolvedConstructorOrFactoryMethod;
 			return (candidate instanceof Method ? (Method) candidate : null);
 		}
 	}
 
-
 	public void registerExternallyManagedConfigMember(Member configMember) {
-		this.externallyManagedConfigMembers.add(configMember);
+		synchronized (this.postProcessingLock) {
+			if (this.externallyManagedConfigMembers == null) {
+				this.externallyManagedConfigMembers = new HashSet<>(1);
+			}
+			this.externallyManagedConfigMembers.add(configMember);
+		}
 	}
 
 	public boolean isExternallyManagedConfigMember(Member configMember) {
-		return this.externallyManagedConfigMembers.contains(configMember);
+		synchronized (this.postProcessingLock) {
+			return (this.externallyManagedConfigMembers != null &&
+					this.externallyManagedConfigMembers.contains(configMember));
+		}
 	}
 
 	public void registerExternallyManagedInitMethod(String initMethod) {
-		this.externallyManagedInitMethods.add(initMethod);
+		synchronized (this.postProcessingLock) {
+			if (this.externallyManagedInitMethods == null) {
+				this.externallyManagedInitMethods = new HashSet<>(1);
+			}
+			this.externallyManagedInitMethods.add(initMethod);
+		}
 	}
 
 	public boolean isExternallyManagedInitMethod(String initMethod) {
-		return this.externallyManagedInitMethods.contains(initMethod);
+		synchronized (this.postProcessingLock) {
+			return (this.externallyManagedInitMethods != null &&
+					this.externallyManagedInitMethods.contains(initMethod));
+		}
 	}
 
 	public void registerExternallyManagedDestroyMethod(String destroyMethod) {
-		this.externallyManagedDestroyMethods.add(destroyMethod);
+		synchronized (this.postProcessingLock) {
+			if (this.externallyManagedDestroyMethods == null) {
+				this.externallyManagedDestroyMethods = new HashSet<>(1);
+			}
+			this.externallyManagedDestroyMethods.add(destroyMethod);
+		}
 	}
 
 	public boolean isExternallyManagedDestroyMethod(String destroyMethod) {
-		return this.externallyManagedDestroyMethods.contains(destroyMethod);
-	}
-
-	public void setDecoratedDefinition(BeanDefinitionHolder decoratedDefinition) {
-		this.decoratedDefinition = decoratedDefinition;
-	}
-
-	public BeanDefinitionHolder getDecoratedDefinition() {
-		return this.decoratedDefinition;
+		synchronized (this.postProcessingLock) {
+			return (this.externallyManagedDestroyMethods != null &&
+					this.externallyManagedDestroyMethods.contains(destroyMethod));
+		}
 	}
 
 

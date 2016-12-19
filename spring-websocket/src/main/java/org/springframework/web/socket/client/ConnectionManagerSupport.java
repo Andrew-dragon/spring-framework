@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,8 @@ import java.net.URI;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.context.SmartLifecycle;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
@@ -44,17 +43,21 @@ public abstract class ConnectionManagerSupport implements SmartLifecycle {
 
 	private boolean autoStartup = false;
 
-	private boolean isRunning = false;
+	private boolean running = false;
 
 	private int phase = Integer.MAX_VALUE;
-
-	private TaskExecutor taskExecutor = new SimpleAsyncTaskExecutor("EndpointConnectionManager-");
 
 	private final Object lifecycleMonitor = new Object();
 
 
 	public ConnectionManagerSupport(String uriTemplate, Object... uriVariables) {
-		this.uri = UriComponentsBuilder.fromUriString(uriTemplate).buildAndExpand(uriVariables).encode().toUri();
+		this.uri = UriComponentsBuilder.fromUriString(uriTemplate).buildAndExpand(
+				uriVariables).encode().toUri();
+	}
+
+
+	protected URI getUri() {
+		return this.uri;
 	}
 
 	/**
@@ -96,23 +99,9 @@ public abstract class ConnectionManagerSupport implements SmartLifecycle {
 		return this.phase;
 	}
 
-	protected URI getUri() {
-		return this.uri;
-	}
 
 	/**
-	 * Return whether this ConnectionManager has been started.
-	 */
-	@Override
-	public boolean isRunning() {
-		synchronized (this.lifecycleMonitor) {
-			return this.isRunning;
-		}
-	}
-
-	/**
-	 * Connect to the configured {@link #setDefaultUri(URI) default URI}. If already
-	 * connected, the method has no impact.
+	 * Start the WebSocket connection. If already connected, the method has no impact.
 	 */
 	@Override
 	public final void start() {
@@ -124,46 +113,40 @@ public abstract class ConnectionManagerSupport implements SmartLifecycle {
 	}
 
 	protected void startInternal() {
-		if (logger.isDebugEnabled()) {
-			logger.debug("Starting " + this.getClass().getSimpleName());
-		}
-		this.isRunning = true;
-		this.taskExecutor.execute(new Runnable() {
-			@Override
-			public void run() {
-				synchronized (lifecycleMonitor) {
-					try {
-						logger.info("Connecting to WebSocket at " + uri);
-						openConnection();
-						logger.info("Successfully connected");
-					}
-					catch (Throwable ex) {
-						logger.error("Failed to connect", ex);
-					}
-				}
+		synchronized (this.lifecycleMonitor) {
+			if (logger.isInfoEnabled()) {
+				logger.info("Starting " + getClass().getSimpleName());
 			}
-		});
+			this.running = true;
+			openConnection();
+		}
 	}
-
-	protected abstract void openConnection() throws Exception;
 
 	@Override
 	public final void stop() {
 		synchronized (this.lifecycleMonitor) {
 			if (isRunning()) {
-				if (logger.isDebugEnabled()) {
-					logger.debug("Stopping " + this.getClass().getSimpleName());
+				if (logger.isInfoEnabled()) {
+					logger.info("Stopping " + getClass().getSimpleName());
 				}
 				try {
 					stopInternal();
 				}
-				catch (Throwable e) {
-					logger.error("Failed to stop WebSocket connection", e);
+				catch (Throwable ex) {
+					logger.error("Failed to stop WebSocket connection", ex);
 				}
 				finally {
-					this.isRunning = false;
+					this.running = false;
 				}
 			}
+		}
+	}
+
+	@Override
+	public final void stop(Runnable callback) {
+		synchronized (this.lifecycleMonitor) {
+			stop();
+			callback.run();
 		}
 	}
 
@@ -173,16 +156,21 @@ public abstract class ConnectionManagerSupport implements SmartLifecycle {
 		}
 	}
 
-	protected abstract boolean isConnected();
+	/**
+	 * Return whether this ConnectionManager has been started.
+	 */
+	@Override
+	public boolean isRunning() {
+		synchronized (this.lifecycleMonitor) {
+			return this.running;
+		}
+	}
+
+
+	protected abstract void openConnection();
 
 	protected abstract void closeConnection() throws Exception;
 
-	@Override
-	public final void stop(Runnable callback) {
-		synchronized (this.lifecycleMonitor) {
-			this.stop();
-			callback.run();
-		}
-	}
+	protected abstract boolean isConnected();
 
 }

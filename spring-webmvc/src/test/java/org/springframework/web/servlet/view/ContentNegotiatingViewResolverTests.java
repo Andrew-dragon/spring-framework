@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import java.util.Set;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.test.MockHttpServletRequest;
 import org.springframework.mock.web.test.MockHttpServletResponse;
@@ -280,7 +281,7 @@ public class ContentNegotiatingViewResolverTests {
 		View viewMock2 = mock(View.class, "text_html");
 		View viewMock3 = mock(View.class, "application_json");
 
-		List<View> defaultViews = new ArrayList<View>();
+		List<View> defaultViews = new ArrayList<>();
 		defaultViews.add(viewMock3);
 		viewResolver.setDefaultViews(defaultViews);
 
@@ -342,7 +343,7 @@ public class ContentNegotiatingViewResolverTests {
 		View viewMock2 = mock(View.class, "text_html");
 		View viewMock3 = mock(View.class, "application_json");
 
-		List<View> defaultViews = new ArrayList<View>();
+		List<View> defaultViews = new ArrayList<>();
 		defaultViews.add(viewMock3);
 		viewResolver.setDefaultViews(defaultViews);
 
@@ -469,7 +470,7 @@ public class ContentNegotiatingViewResolverTests {
 		InternalResourceViewResolver nestedResolver = new InternalResourceViewResolver();
 		nestedResolver.setApplicationContext(webAppContext);
 		nestedResolver.setViewClass(InternalResourceView.class);
-		viewResolver.setViewResolvers(new ArrayList<ViewResolver>(Arrays.asList(nestedResolver)));
+		viewResolver.setViewResolvers(new ArrayList<>(Arrays.asList(nestedResolver)));
 
 		FixedContentNegotiationStrategy fixedStrategy = new FixedContentNegotiationStrategy(MediaType.TEXT_HTML);
 		viewResolver.setContentNegotiationManager(new ContentNegotiationManager(fixedStrategy));

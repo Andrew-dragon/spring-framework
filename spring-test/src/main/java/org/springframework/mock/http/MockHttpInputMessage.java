@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.mock.http;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.springframework.http.Cookies;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpInputMessage;
 import org.springframework.util.Assert;
@@ -36,17 +36,16 @@ public class MockHttpInputMessage implements HttpInputMessage {
 
 	private final InputStream body;
 
-	private final Cookies cookies = new Cookies();
-
 
 	public MockHttpInputMessage(byte[] contents) {
-		this.body = (contents != null) ? new ByteArrayInputStream(contents) : null;
+		this.body = (contents != null ? new ByteArrayInputStream(contents) : null);
 	}
 
 	public MockHttpInputMessage(InputStream body) {
-		Assert.notNull(body, "'body' must not be null");
+		Assert.notNull(body, "InputStream must not be null");
 		this.body = body;
 	}
+
 
 	@Override
 	public HttpHeaders getHeaders() {
@@ -58,8 +57,4 @@ public class MockHttpInputMessage implements HttpInputMessage {
 		return this.body;
 	}
 
-	@Override
-	public Cookies getCookies() {
-		return this.cookies ;
-	}
 }

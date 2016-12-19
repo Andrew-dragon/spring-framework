@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.springframework.http.Cookies;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
@@ -60,7 +59,7 @@ public class InterceptingClientHttpRequestFactoryTests {
 
 	@Test
 	public void basic() throws Exception {
-		List<ClientHttpRequestInterceptor> interceptors = new ArrayList<ClientHttpRequestInterceptor>();
+		List<ClientHttpRequestInterceptor> interceptors = new ArrayList<>();
 		interceptors.add(new NoOpInterceptor());
 		interceptors.add(new NoOpInterceptor());
 		interceptors.add(new NoOpInterceptor());
@@ -78,7 +77,7 @@ public class InterceptingClientHttpRequestFactoryTests {
 
 	@Test
 	public void noExecution() throws Exception {
-		List<ClientHttpRequestInterceptor> interceptors = new ArrayList<ClientHttpRequestInterceptor>();
+		List<ClientHttpRequestInterceptor> interceptors = new ArrayList<>();
 		interceptors.add(new ClientHttpRequestInterceptor() {
 			@Override
 			public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution)
@@ -254,8 +253,6 @@ public class InterceptingClientHttpRequestFactoryTests {
 
 		private boolean executed = false;
 
-		private Cookies cookies = new Cookies();
-
 		private RequestMock() {
 		}
 
@@ -292,11 +289,6 @@ public class InterceptingClientHttpRequestFactoryTests {
 			executed = true;
 			return responseMock;
 		}
-
-		@Override
-		public Cookies getCookies() {
-			return this.cookies ;
-		}
 	}
 
 	private static class ResponseMock implements ClientHttpResponse {
@@ -306,8 +298,6 @@ public class InterceptingClientHttpRequestFactoryTests {
 		private String statusText = "";
 
 		private HttpHeaders headers = new HttpHeaders();
-
-		private Cookies cookies = new Cookies();
 
 		@Override
 		public HttpStatus getStatusCode() throws IOException {
@@ -336,11 +326,6 @@ public class InterceptingClientHttpRequestFactoryTests {
 
 		@Override
 		public void close() {
-		}
-
-		@Override
-		public Cookies getCookies() {
-			return this.cookies ;
 		}
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import javax.management.modelmbean.ModelMBeanOperationInfo;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.jmx.support.JmxUtils;
 
@@ -180,7 +180,7 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 
 	private boolean exposeClassDescriptor = false;
 
-	private ParameterNameDiscoverer parameterNameDiscoverer = new LocalVariableTableParameterNameDiscoverer();
+	private ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
 
 
 	/**
@@ -262,7 +262,7 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 	/**
 	 * Set the ParameterNameDiscoverer to use for resolving method parameter
 	 * names if needed (e.g. for parameter names of MBean operation methods).
-	 * <p>The default is {@link LocalVariableTableParameterNameDiscoverer}.
+	 * <p>Default is a {@link DefaultParameterNameDiscoverer}.
 	 */
 	public void setParameterNameDiscoverer(ParameterNameDiscoverer parameterNameDiscoverer) {
 		this.parameterNameDiscoverer = parameterNameDiscoverer;
@@ -292,7 +292,7 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 	@Override
 	protected ModelMBeanAttributeInfo[] getAttributeInfo(Object managedBean, String beanKey) throws JMException {
 		PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(getClassToExpose(managedBean));
-		List<ModelMBeanAttributeInfo> infos = new ArrayList<ModelMBeanAttributeInfo>();
+		List<ModelMBeanAttributeInfo> infos = new ArrayList<>();
 
 		for (PropertyDescriptor prop : props) {
 			Method getter = prop.getReadMethod();
@@ -346,13 +346,13 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 	@Override
 	protected ModelMBeanOperationInfo[] getOperationInfo(Object managedBean, String beanKey) {
 		Method[] methods = getClassToExpose(managedBean).getMethods();
-		List<ModelMBeanOperationInfo> infos = new ArrayList<ModelMBeanOperationInfo>();
+		List<ModelMBeanOperationInfo> infos = new ArrayList<>();
 
 		for (Method method : methods) {
 			if (method.isSynthetic()) {
 				continue;
 			}
-			if (method.getDeclaringClass().equals(Object.class)) {
+			if (Object.class == method.getDeclaringClass()) {
 				continue;
 			}
 
@@ -434,7 +434,7 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 	 * @see #getClassToExpose(Class)
 	 * @see org.springframework.aop.framework.AopProxyUtils#proxiedUserInterfaces(Object)
 	 */
-	protected Class getClassForDescriptor(Object managedBean) {
+	protected Class<?> getClassForDescriptor(Object managedBean) {
 		if (AopUtils.isJdkDynamicProxy(managedBean)) {
 			return AopProxyUtils.proxiedUserInterfaces(managedBean)[0];
 		}
@@ -514,7 +514,7 @@ public abstract class AbstractReflectiveMBeanInfoAssembler extends AbstractMBean
 
 		MBeanParameterInfo[] info = new MBeanParameterInfo[paramNames.length];
 		Class<?>[] typeParameters = method.getParameterTypes();
-		for(int i = 0; i < info.length; i++) {
+		for (int i = 0; i < info.length; i++) {
 			info[i] = new MBeanParameterInfo(paramNames[i], typeParameters[i].getName(), paramNames[i]);
 		}
 

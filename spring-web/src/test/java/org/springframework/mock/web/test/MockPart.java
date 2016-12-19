@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
-
 import javax.servlet.http.Part;
 
 import org.springframework.util.Assert;
@@ -92,6 +91,11 @@ public class MockPart implements Part {
 
 	@Override
 	public String getName() {
+		return this.name;
+	}
+
+	@Override
+	public String getSubmittedFileName() {
 		return this.name;
 	}
 

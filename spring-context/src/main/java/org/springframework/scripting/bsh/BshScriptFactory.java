@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.springframework.scripting.ScriptFactory;
 import org.springframework.scripting.ScriptSource;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ReflectionUtils;
 
 /**
  * {@link org.springframework.scripting.ScriptFactory} implementation
@@ -45,11 +46,11 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 
 	private final String scriptSourceLocator;
 
-	private final Class[] scriptInterfaces;
+	private final Class<?>[] scriptInterfaces;
 
 	private ClassLoader beanClassLoader = ClassUtils.getDefaultClassLoader();
 
-	private Class scriptClass;
+	private Class<?> scriptClass;
 
 	private final Object scriptClassMonitor = new Object();
 
@@ -64,7 +65,9 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 	 * Interpreted by the post-processor that actually creates the script.
 	 */
 	public BshScriptFactory(String scriptSourceLocator) {
-		this(scriptSourceLocator, null);
+		Assert.hasText(scriptSourceLocator, "'scriptSourceLocator' must not be empty");
+		this.scriptSourceLocator = scriptSourceLocator;
+		this.scriptInterfaces = null;
 	}
 
 	/**
@@ -78,11 +81,12 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 	 * @param scriptInterfaces the Java interfaces that the scripted object
 	 * is supposed to implement (may be {@code null})
 	 */
-	public BshScriptFactory(String scriptSourceLocator, Class[] scriptInterfaces) {
+	public BshScriptFactory(String scriptSourceLocator, Class<?>... scriptInterfaces) {
 		Assert.hasText(scriptSourceLocator, "'scriptSourceLocator' must not be empty");
 		this.scriptSourceLocator = scriptSourceLocator;
 		this.scriptInterfaces = scriptInterfaces;
 	}
+
 
 	@Override
 	public void setBeanClassLoader(ClassLoader classLoader) {
@@ -96,7 +100,7 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 	}
 
 	@Override
-	public Class[] getScriptInterfaces() {
+	public Class<?>[] getScriptInterfaces() {
 		return this.scriptInterfaces;
 	}
 
@@ -113,12 +117,12 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 	 * @see BshScriptUtils#createBshObject(String, Class[], ClassLoader)
 	 */
 	@Override
-	public Object getScriptedObject(ScriptSource scriptSource, Class[] actualInterfaces)
+	public Object getScriptedObject(ScriptSource scriptSource, Class<?>... actualInterfaces)
 			throws IOException, ScriptCompilationException {
 
-		try {
-			Class clazz = null;
+		Class<?> clazz;
 
+		try {
 			synchronized (this.scriptClassMonitor) {
 				boolean requiresScriptEvaluation = (this.wasModifiedForTypeCheck && this.scriptClass == null);
 				this.wasModifiedForTypeCheck = false;
@@ -130,7 +134,7 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 					if (result instanceof Class) {
 						// A Class: We'll cache the Class here and create an instance
 						// outside of the synchronized block.
-						this.scriptClass = (Class) result;
+						this.scriptClass = (Class<?>) result;
 					}
 					else {
 						// Not a Class: OK, we'll simply create BeanShell objects
@@ -142,44 +146,52 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 				}
 				clazz = this.scriptClass;
 			}
+		}
+		catch (EvalError ex) {
+			this.scriptClass = null;
+			throw new ScriptCompilationException(scriptSource, ex);
+		}
 
-			if (clazz != null) {
-				// A Class: We need to create an instance for every call.
-				try {
-					return clazz.newInstance();
-				}
-				catch (Throwable ex) {
-					throw new ScriptCompilationException(
-							scriptSource, "Could not instantiate script class: " + clazz.getName(), ex);
-				}
+		if (clazz != null) {
+			// A Class: We need to create an instance for every call.
+			try {
+				return ReflectionUtils.accessibleConstructor(clazz).newInstance();
 			}
-			else {
-				// Not a Class: We need to evaluate the script for every call.
+			catch (Throwable ex) {
+				throw new ScriptCompilationException(
+						scriptSource, "Could not instantiate script class: " + clazz.getName(), ex);
+			}
+		}
+		else {
+			// Not a Class: We need to evaluate the script for every call.
+			try {
 				return BshScriptUtils.createBshObject(
 						scriptSource.getScriptAsString(), actualInterfaces, this.beanClassLoader);
 			}
-		}
-		catch (EvalError ex) {
-			throw new ScriptCompilationException(scriptSource, ex);
+			catch (EvalError ex) {
+				throw new ScriptCompilationException(scriptSource, ex);
+			}
 		}
 	}
 
 	@Override
-	public Class getScriptedObjectType(ScriptSource scriptSource)
+	public Class<?> getScriptedObjectType(ScriptSource scriptSource)
 			throws IOException, ScriptCompilationException {
 
-		try {
-			synchronized (this.scriptClassMonitor) {
+		synchronized (this.scriptClassMonitor) {
+			try {
 				if (scriptSource.isModified()) {
 					// New script content: Let's check whether it evaluates to a Class.
 					this.wasModifiedForTypeCheck = true;
-					this.scriptClass = BshScriptUtils.determineBshObjectType(scriptSource.getScriptAsString());
+					this.scriptClass = BshScriptUtils.determineBshObjectType(
+							scriptSource.getScriptAsString(), this.beanClassLoader);
 				}
 				return this.scriptClass;
 			}
-		}
-		catch (EvalError ex) {
-			throw new ScriptCompilationException(scriptSource, ex);
+			catch (EvalError ex) {
+				this.scriptClass = null;
+				throw new ScriptCompilationException(scriptSource, ex);
+			}
 		}
 	}
 

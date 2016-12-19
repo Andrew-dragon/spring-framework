@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,14 @@ package org.springframework.util;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Miscellaneous object utility methods.
  *
- * <p>Mainly for internal use within the framework; consider
- * <a href="http://jakarta.apache.org/commons/lang/">Jakarta's Commons Lang</a>
- * for a more comprehensive suite of object utilities.
+ * <p>Mainly for internal use within the framework.
  *
  * <p>Thanks to Alex Ruiz for contributing several enhancements to this class!
  *
@@ -33,8 +34,11 @@ import java.util.Arrays;
  * @author Rod Johnson
  * @author Rob Harrop
  * @author Chris Beams
+ * @author Sam Brannen
  * @since 19.03.2004
- * @see org.apache.commons.lang.ObjectUtils
+ * @see ClassUtils
+ * @see CollectionUtils
+ * @see StringUtils
  */
 public abstract class ObjectUtils {
 
@@ -63,23 +67,21 @@ public abstract class ObjectUtils {
 	}
 
 	/**
-	 * Check whether the given exception is compatible with the exceptions
-	 * declared in a throws clause.
-	 * @param ex the exception to checked
-	 * @param declaredExceptions the exceptions declared in the throws clause
+	 * Check whether the given exception is compatible with the specified
+	 * exception types, as declared in a throws clause.
+	 * @param ex the exception to check
+	 * @param declaredExceptions the exception types declared in the throws clause
 	 * @return whether the given exception is compatible
 	 */
-	public static boolean isCompatibleWithThrowsClause(Throwable ex, Class[] declaredExceptions) {
+	public static boolean isCompatibleWithThrowsClause(Throwable ex, Class<?>... declaredExceptions) {
 		if (!isCheckedException(ex)) {
 			return true;
 		}
 		if (declaredExceptions != null) {
-			int i = 0;
-			while (i < declaredExceptions.length) {
-				if (declaredExceptions[i].isAssignableFrom(ex.getClass())) {
+			for (Class<?> declaredException : declaredExceptions) {
+				if (declaredException.isInstance(ex)) {
 					return true;
 				}
-				i++;
 			}
 		}
 		return false;
@@ -98,9 +100,78 @@ public abstract class ObjectUtils {
 	 * Determine whether the given array is empty:
 	 * i.e. {@code null} or of zero length.
 	 * @param array the array to check
+	 * @see #isEmpty(Object)
 	 */
 	public static boolean isEmpty(Object[] array) {
 		return (array == null || array.length == 0);
+	}
+
+	/**
+	 * Determine whether the given object is empty.
+	 * <p>This method supports the following object types.
+	 * <ul>
+	 * <li>{@code Optional}: considered empty if {@link Optional#empty()}</li>
+	 * <li>{@code Array}: considered empty if its length is zero</li>
+	 * <li>{@link CharSequence}: considered empty if its length is zero</li>
+	 * <li>{@link Collection}: delegates to {@link Collection#isEmpty()}</li>
+	 * <li>{@link Map}: delegates to {@link Map#isEmpty()}</li>
+	 * </ul>
+	 * <p>If the given object is non-null and not one of the aforementioned
+	 * supported types, this method returns {@code false}.
+	 * @param obj the object to check
+	 * @return {@code true} if the object is {@code null} or <em>empty</em>
+	 * @since 4.2
+	 * @see Optional#isPresent()
+	 * @see ObjectUtils#isEmpty(Object[])
+	 * @see StringUtils#hasLength(CharSequence)
+	 * @see StringUtils#isEmpty(Object)
+	 * @see CollectionUtils#isEmpty(java.util.Collection)
+	 * @see CollectionUtils#isEmpty(java.util.Map)
+	 */
+	@SuppressWarnings("rawtypes")
+	public static boolean isEmpty(Object obj) {
+		if (obj == null) {
+			return true;
+		}
+
+		if (obj instanceof Optional) {
+			return !((Optional) obj).isPresent();
+		}
+		if (obj.getClass().isArray()) {
+			return Array.getLength(obj) == 0;
+		}
+		if (obj instanceof CharSequence) {
+			return ((CharSequence) obj).length() == 0;
+		}
+		if (obj instanceof Collection) {
+			return ((Collection) obj).isEmpty();
+		}
+		if (obj instanceof Map) {
+			return ((Map) obj).isEmpty();
+		}
+
+		// else
+		return false;
+	}
+
+	/**
+	 * Unwrap the given object which is potentially a {@link java.util.Optional}.
+	 * @param obj the candidate object
+	 * @return either the value held within the {@code Optional}, {@code null}
+	 * if the {@code Optional} is empty, or simply the given object as-is
+	 * @since 5.0
+	 */
+	public static Object unwrapOptional(Object obj) {
+		if (obj instanceof Optional) {
+			Optional<?> optional = (Optional<?>) obj;
+			if (!optional.isPresent()) {
+				return null;
+			}
+			Object result = optional.get();
+			Assert.isTrue(!(result instanceof Optional), "Multi-level Optional usage not supported");
+			return result;
+		}
+		return obj;
 	}
 
 	/**
@@ -161,7 +232,7 @@ public abstract class ObjectUtils {
 	 */
 	public static <E extends Enum<?>> E caseInsensitiveValueOf(E[] enumValues, String constant) {
 		for (E candidate : enumValues) {
-			if(candidate.toString().equalsIgnoreCase(constant)) {
+			if (candidate.toString().equalsIgnoreCase(constant)) {
 				return candidate;
 			}
 		}
@@ -177,7 +248,7 @@ public abstract class ObjectUtils {
 	 * @param obj the object to append
 	 * @return the new array (of the same component type; never {@code null})
 	 */
-	public static <A,O extends A> A[] addObjectToArray(A[] array, O obj) {
+	public static <A, O extends A> A[] addObjectToArray(A[] array, O obj) {
 		Class<?> compType = Object.class;
 		if (array != null) {
 			compType = array.getClass().getComponentType();
@@ -218,7 +289,7 @@ public abstract class ObjectUtils {
 		if (length == 0) {
 			return new Object[0];
 		}
-		Class wrapperType = Array.get(source, 0).getClass();
+		Class<?> wrapperType = Array.get(source, 0).getClass();
 		Object[] newArray = (Object[]) Array.newInstance(wrapperType, length);
 		for (int i = 0; i < length; i++) {
 			newArray[i] = Array.get(source, i);
@@ -232,14 +303,14 @@ public abstract class ObjectUtils {
 	//---------------------------------------------------------------------
 
 	/**
-	 * Determine if the given objects are equal, returning {@code true}
-	 * if both are {@code null} or {@code false} if only one is
-	 * {@code null}.
+	 * Determine if the given objects are equal, returning {@code true} if
+	 * both are {@code null} or {@code false} if only one is {@code null}.
 	 * <p>Compares arrays with {@code Arrays.equals}, performing an equality
 	 * check based on the array elements rather than the array reference.
 	 * @param o1 first Object to compare
 	 * @param o2 second Object to compare
 	 * @return whether the given objects are equal
+	 * @see Object#equals(Object)
 	 * @see java.util.Arrays#equals
 	 */
 	public static boolean nullSafeEquals(Object o1, Object o2) {
@@ -253,43 +324,58 @@ public abstract class ObjectUtils {
 			return true;
 		}
 		if (o1.getClass().isArray() && o2.getClass().isArray()) {
-			if (o1 instanceof Object[] && o2 instanceof Object[]) {
-				return Arrays.equals((Object[]) o1, (Object[]) o2);
-			}
-			if (o1 instanceof boolean[] && o2 instanceof boolean[]) {
-				return Arrays.equals((boolean[]) o1, (boolean[]) o2);
-			}
-			if (o1 instanceof byte[] && o2 instanceof byte[]) {
-				return Arrays.equals((byte[]) o1, (byte[]) o2);
-			}
-			if (o1 instanceof char[] && o2 instanceof char[]) {
-				return Arrays.equals((char[]) o1, (char[]) o2);
-			}
-			if (o1 instanceof double[] && o2 instanceof double[]) {
-				return Arrays.equals((double[]) o1, (double[]) o2);
-			}
-			if (o1 instanceof float[] && o2 instanceof float[]) {
-				return Arrays.equals((float[]) o1, (float[]) o2);
-			}
-			if (o1 instanceof int[] && o2 instanceof int[]) {
-				return Arrays.equals((int[]) o1, (int[]) o2);
-			}
-			if (o1 instanceof long[] && o2 instanceof long[]) {
-				return Arrays.equals((long[]) o1, (long[]) o2);
-			}
-			if (o1 instanceof short[] && o2 instanceof short[]) {
-				return Arrays.equals((short[]) o1, (short[]) o2);
-			}
+			return arrayEquals(o1, o2);
+		}
+		return false;
+	}
+
+	/**
+	 * Compare the given arrays with {@code Arrays.equals}, performing an equality
+	 * check based on the array elements rather than the array reference.
+	 * @param o1 first array to compare
+	 * @param o2 second array to compare
+	 * @return whether the given objects are equal
+	 * @see #nullSafeEquals(Object, Object)
+	 * @see java.util.Arrays#equals
+	 */
+	private static boolean arrayEquals(Object o1, Object o2) {
+		if (o1 instanceof Object[] && o2 instanceof Object[]) {
+			return Arrays.equals((Object[]) o1, (Object[]) o2);
+		}
+		if (o1 instanceof boolean[] && o2 instanceof boolean[]) {
+			return Arrays.equals((boolean[]) o1, (boolean[]) o2);
+		}
+		if (o1 instanceof byte[] && o2 instanceof byte[]) {
+			return Arrays.equals((byte[]) o1, (byte[]) o2);
+		}
+		if (o1 instanceof char[] && o2 instanceof char[]) {
+			return Arrays.equals((char[]) o1, (char[]) o2);
+		}
+		if (o1 instanceof double[] && o2 instanceof double[]) {
+			return Arrays.equals((double[]) o1, (double[]) o2);
+		}
+		if (o1 instanceof float[] && o2 instanceof float[]) {
+			return Arrays.equals((float[]) o1, (float[]) o2);
+		}
+		if (o1 instanceof int[] && o2 instanceof int[]) {
+			return Arrays.equals((int[]) o1, (int[]) o2);
+		}
+		if (o1 instanceof long[] && o2 instanceof long[]) {
+			return Arrays.equals((long[]) o1, (long[]) o2);
+		}
+		if (o1 instanceof short[] && o2 instanceof short[]) {
+			return Arrays.equals((short[]) o1, (short[]) o2);
 		}
 		return false;
 	}
 
 	/**
 	 * Return as hash code for the given object; typically the value of
-	 * {@code {@link Object#hashCode()}}. If the object is an array,
+	 * {@code Object#hashCode()}}. If the object is an array,
 	 * this method will delegate to any of the {@code nullSafeHashCode}
 	 * methods for arrays in this class. If the object is {@code null},
 	 * this method returns 0.
+	 * @see Object#hashCode()
 	 * @see #nullSafeHashCode(Object[])
 	 * @see #nullSafeHashCode(boolean[])
 	 * @see #nullSafeHashCode(byte[])
@@ -345,9 +431,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + nullSafeHashCode(array[i]);
+		for (Object element : array) {
+			hash = MULTIPLIER * hash + nullSafeHashCode(element);
 		}
 		return hash;
 	}
@@ -361,9 +446,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + hashCode(array[i]);
+		for (boolean element : array) {
+			hash = MULTIPLIER * hash + hashCode(element);
 		}
 		return hash;
 	}
@@ -377,9 +461,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + array[i];
+		for (byte element : array) {
+			hash = MULTIPLIER * hash + element;
 		}
 		return hash;
 	}
@@ -393,9 +476,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + array[i];
+		for (char element : array) {
+			hash = MULTIPLIER * hash + element;
 		}
 		return hash;
 	}
@@ -409,9 +491,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + hashCode(array[i]);
+		for (double element : array) {
+			hash = MULTIPLIER * hash + hashCode(element);
 		}
 		return hash;
 	}
@@ -425,9 +506,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + hashCode(array[i]);
+		for (float element : array) {
+			hash = MULTIPLIER * hash + hashCode(element);
 		}
 		return hash;
 	}
@@ -441,9 +521,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + array[i];
+		for (int element : array) {
+			hash = MULTIPLIER * hash + element;
 		}
 		return hash;
 	}
@@ -457,9 +536,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + hashCode(array[i]);
+		for (long element : array) {
+			hash = MULTIPLIER * hash + hashCode(element);
 		}
 		return hash;
 	}
@@ -473,9 +551,8 @@ public abstract class ObjectUtils {
 			return 0;
 		}
 		int hash = INITIAL_HASH;
-		int arraySize = array.length;
-		for (int i = 0; i < arraySize; i++) {
-			hash = MULTIPLIER * hash + array[i];
+		for (short element : array) {
+			hash = MULTIPLIER * hash + element;
 		}
 		return hash;
 	}
@@ -485,7 +562,7 @@ public abstract class ObjectUtils {
 	 * @see Boolean#hashCode()
 	 */
 	public static int hashCode(boolean bool) {
-		return bool ? 1231 : 1237;
+		return (bool ? 1231 : 1237);
 	}
 
 	/**
@@ -493,8 +570,7 @@ public abstract class ObjectUtils {
 	 * @see Double#hashCode()
 	 */
 	public static int hashCode(double dbl) {
-		long bits = Double.doubleToLongBits(dbl);
-		return hashCode(bits);
+		return hashCode(Double.doubleToLongBits(dbl));
 	}
 
 	/**

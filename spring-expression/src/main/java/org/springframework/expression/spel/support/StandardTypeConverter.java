@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.expression.spel.support;
 
 import org.springframework.core.convert.ConversionException;
 import org.springframework.core.convert.ConversionService;
-import org.springframework.core.convert.ConverterNotFoundException;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.expression.TypeConverter;
@@ -27,8 +26,8 @@ import org.springframework.expression.spel.SpelMessage;
 import org.springframework.util.Assert;
 
 /**
- * Default implementation of the {@link TypeConverter} interface, delegating to a core
- * Spring {@link ConversionService}.
+ * Default implementation of the {@link TypeConverter} interface,
+ * delegating to a core Spring {@link ConversionService}.
  *
  * @author Juergen Hoeller
  * @author Andy Clement
@@ -37,20 +36,20 @@ import org.springframework.util.Assert;
  */
 public class StandardTypeConverter implements TypeConverter {
 
-	private static ConversionService defaultConversionService;
-
 	private final ConversionService conversionService;
 
 
+	/**
+	 * Create a StandardTypeConverter for the default ConversionService.
+	 */
 	public StandardTypeConverter() {
-		synchronized (this) {
-			if (defaultConversionService == null) {
-				defaultConversionService = new DefaultConversionService();
-			}
-		}
-		this.conversionService = defaultConversionService;
+		this.conversionService = DefaultConversionService.getSharedInstance();
 	}
 
+	/**
+	 * Create a StandardTypeConverter for the given ConversionService.
+	 * @param conversionService the ConversionService to delegate to
+	 */
 	public StandardTypeConverter(ConversionService conversionService) {
 		Assert.notNull(conversionService, "ConversionService must not be null");
 		this.conversionService = conversionService;
@@ -67,11 +66,9 @@ public class StandardTypeConverter implements TypeConverter {
 		try {
 			return this.conversionService.convert(value, sourceType, targetType);
 		}
-		catch (ConverterNotFoundException cenfe) {
-			throw new SpelEvaluationException(cenfe, SpelMessage.TYPE_CONVERSION_ERROR, sourceType.toString(), targetType.toString());
-		}
-		catch (ConversionException ce) {
-			throw new SpelEvaluationException(ce, SpelMessage.TYPE_CONVERSION_ERROR, sourceType.toString(), targetType.toString());
+		catch (ConversionException ex) {
+			throw new SpelEvaluationException(
+					ex, SpelMessage.TYPE_CONVERSION_ERROR, sourceType.toString(), targetType.toString());
 		}
 	}
 

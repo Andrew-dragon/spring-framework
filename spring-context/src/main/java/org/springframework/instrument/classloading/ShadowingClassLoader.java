@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,9 +54,9 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 
 	private final ClassLoader enclosingClassLoader;
 
-	private final List<ClassFileTransformer> classFileTransformers = new LinkedList<ClassFileTransformer>();
+	private final List<ClassFileTransformer> classFileTransformers = new LinkedList<>();
 
-	private final Map<String, Class> classCache = new HashMap<String, Class>();
+	private final Map<String, Class<?>> classCache = new HashMap<>();
 
 
 	/**
@@ -96,7 +96,7 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 	@Override
 	public Class<?> loadClass(String name) throws ClassNotFoundException {
 		if (shouldShadow(name)) {
-			Class cls = this.classCache.get(name);
+			Class<?> cls = this.classCache.get(name);
 			if (cls != null) {
 				return cls;
 			}
@@ -129,7 +129,7 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 	}
 
 
-	private Class doLoadClass(String name) throws ClassNotFoundException {
+	private Class<?> doLoadClass(String name) throws ClassNotFoundException {
 		String internalName = StringUtils.replace(name, ".", "/") + ".class";
 		InputStream is = this.enclosingClassLoader.getResourceAsStream(internalName);
 		if (is == null) {
@@ -138,7 +138,7 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 		try {
 			byte[] bytes = FileCopyUtils.copyToByteArray(is);
 			bytes = applyTransformers(name, bytes);
-			Class cls = defineClass(name, bytes, 0, bytes.length);
+			Class<?> cls = defineClass(name, bytes, 0, bytes.length);
 			// Additional check for defining the package, if not defined yet.
 			if (cls.getPackage() == null) {
 				int packageSeparator = name.lastIndexOf('.');

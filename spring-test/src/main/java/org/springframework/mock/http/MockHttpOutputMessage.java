@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.mock.http;
 
 import java.io.ByteArrayOutputStream;
@@ -20,8 +21,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
-import org.springframework.http.Cookies;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpOutputMessage;
 
@@ -33,13 +34,12 @@ import org.springframework.http.HttpOutputMessage;
  */
 public class MockHttpOutputMessage implements HttpOutputMessage {
 
-	private static final Charset DEFAULT_CHARSET = Charset.forName("UTF-8");
+	private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
 
 	private final HttpHeaders headers = new HttpHeaders();
 
-	private final ByteArrayOutputStream body = new ByteArrayOutputStream();
+	private final ByteArrayOutputStream body = new ByteArrayOutputStream(1024);
 
-	private final Cookies cookies = new Cookies();
 
 	/**
 	 * Return the headers.
@@ -78,18 +78,12 @@ public class MockHttpOutputMessage implements HttpOutputMessage {
 	public String getBodyAsString(Charset charset) {
 		byte[] bytes = getBodyAsBytes();
 		try {
-			// Use
 			return new String(bytes, charset.name());
 		}
 		catch (UnsupportedEncodingException ex) {
 			// should not occur
-			throw new InternalError(ex.getMessage());
+			throw new IllegalStateException(ex);
 		}
-	}
-
-	@Override
-	public Cookies getCookies() {
-		return this.cookies;
 	}
 
 }

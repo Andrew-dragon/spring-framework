@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,13 +31,13 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
 import javax.sql.DataSource;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -224,7 +224,7 @@ public class JdbcTemplateTests {
 		String[] results = { "rod", "gary", " portia" };
 
 		class StringHandler implements RowCallbackHandler {
-			private List<String> list = new LinkedList<String>();
+			private List<String> list = new LinkedList<>();
 			@Override
 			public void processRow(ResultSet rs) throws SQLException {
 				this.list.add(rs.getString(1));
@@ -742,7 +742,7 @@ public class JdbcTemplateTests {
 	public void testBatchUpdateWithListOfObjectArrays() throws Exception {
 
 		final String sql = "UPDATE NOSUCHTABLE SET DATE_DISPATCHED = SYSDATE WHERE ID = ?";
-		final List<Object[]> ids = new ArrayList<Object[]>();
+		final List<Object[]> ids = new ArrayList<>();
 		ids.add(new Object[] {100});
 		ids.add(new Object[] {200});
 		final int[] rowsAffected = new int[] { 1, 2 };
@@ -768,7 +768,7 @@ public class JdbcTemplateTests {
 	@Test
 	public void testBatchUpdateWithListOfObjectArraysPlusTypeInfo() throws Exception {
 		final String sql = "UPDATE NOSUCHTABLE SET DATE_DISPATCHED = SYSDATE WHERE ID = ?";
-		final List<Object[]> ids = new ArrayList<Object[]>();
+		final List<Object[]> ids = new ArrayList<>();
 		ids.add(new Object[] {100});
 		ids.add(new Object[] {200});
 		final int[] sqlTypes = new int[] {Types.NUMERIC};
@@ -1185,7 +1185,7 @@ public class JdbcTemplateTests {
 			public CallableStatement createCallableStatement(Connection con) {
 				return callableStatement;
 			}
-		}, new ArrayList<SqlParameter>());
+		}, new ArrayList<>());
 
 		verify(this.resultSet, times(2)).close();
 		verify(this.statement).close();
@@ -1246,7 +1246,7 @@ public class JdbcTemplateTests {
 		given(this.callableStatement.execute()).willReturn(true);
 		given(this.callableStatement.getUpdateCount()).willReturn(-1);
 
-		List<SqlParameter> params = new ArrayList<SqlParameter>();
+		List<SqlParameter> params = new ArrayList<>();
 		params.add(new SqlReturnResultSet("", new RowCallbackHandler() {
 			@Override
 			public void processRow(ResultSet rs) {
@@ -1286,10 +1286,10 @@ public class JdbcTemplateTests {
 		assertTrue("now it should have been set to case insensitive",
 				this.template.isResultsMapCaseInsensitive());
 
-		List<SqlParameter> params = new ArrayList<SqlParameter>();
+		List<SqlParameter> params = new ArrayList<>();
 		params.add(new SqlOutParameter("a", 12));
 
-		Map out = this.template.call(new CallableStatementCreator() {
+		Map<String, Object> out = this.template.call(new CallableStatementCreator() {
 			@Override
 			public CallableStatement createCallableStatement(Connection conn)
 					throws SQLException {

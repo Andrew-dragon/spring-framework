@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,8 +79,7 @@ public class AnnotatedBeanDefinitionReader {
 		Assert.notNull(registry, "BeanDefinitionRegistry must not be null");
 		Assert.notNull(environment, "Environment must not be null");
 		this.registry = registry;
-		this.conditionEvaluator = new ConditionEvaluator(registry, environment,
-				null, null, null);
+		this.conditionEvaluator = new ConditionEvaluator(registry, environment, null);
 		AnnotationConfigUtils.registerAnnotationConfigProcessors(this.registry);
 	}
 
@@ -98,8 +97,7 @@ public class AnnotatedBeanDefinitionReader {
 	 * @see #registerBean(Class, String, Class...)
 	 */
 	public void setEnvironment(Environment environment) {
-		this.conditionEvaluator = new ConditionEvaluator(this.registry, environment,
-				null, null, null);
+		this.conditionEvaluator = new ConditionEvaluator(this.registry, environment, null);
 	}
 
 	/**
@@ -129,25 +127,28 @@ public class AnnotatedBeanDefinitionReader {
 		registerBean(annotatedClass, null, (Class<? extends Annotation>[]) null);
 	}
 
+	@SuppressWarnings("unchecked")
 	public void registerBean(Class<?> annotatedClass, Class<? extends Annotation>... qualifiers) {
 		registerBean(annotatedClass, null, qualifiers);
 	}
 
+	@SuppressWarnings("unchecked")
 	public void registerBean(Class<?> annotatedClass, String name, Class<? extends Annotation>... qualifiers) {
 		AnnotatedGenericBeanDefinition abd = new AnnotatedGenericBeanDefinition(annotatedClass);
-		if (conditionEvaluator.shouldSkip(abd.getMetadata())) {
+		if (this.conditionEvaluator.shouldSkip(abd.getMetadata())) {
 			return;
 		}
+
 		ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(abd);
 		abd.setScope(scopeMetadata.getScopeName());
 		String beanName = (name != null ? name : this.beanNameGenerator.generateBeanName(abd, this.registry));
 		AnnotationConfigUtils.processCommonDefinitionAnnotations(abd);
 		if (qualifiers != null) {
 			for (Class<? extends Annotation> qualifier : qualifiers) {
-				if (Primary.class.equals(qualifier)) {
+				if (Primary.class == qualifier) {
 					abd.setPrimary(true);
 				}
-				else if (Lazy.class.equals(qualifier)) {
+				else if (Lazy.class == qualifier) {
 					abd.setLazyInit(true);
 				}
 				else {
@@ -155,6 +156,7 @@ public class AnnotatedBeanDefinitionReader {
 				}
 			}
 		}
+
 		BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(abd, beanName);
 		definitionHolder = AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);
 		BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, this.registry);
